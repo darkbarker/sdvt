@@ -37,6 +37,8 @@ static       gboolean opt_visible_bell = FALSE;
 
 static       gchar   *opt_browser_command = NULL;
 
+static       gboolean opt_restart_if_exit = FALSE;
+
 static const gchar   *VERSION   = "0.666";
 
 static const GOptionEntry option_entries[] =
@@ -58,6 +60,8 @@ static const GOptionEntry option_entries[] =
     { "visible-bell",     '\0', G_OPTION_FLAG_IN_MAIN, G_OPTION_ARG_NONE,   &opt_visible_bell,         "Visible bell", NULL, },
 
     { "browser",          '\0', G_OPTION_FLAG_IN_MAIN, G_OPTION_ARG_STRING, &opt_browser_command,      "Browser command", "COMMAND", },
+
+    { "restart-if-exit",  '\0', G_OPTION_FLAG_IN_MAIN, G_OPTION_ARG_NONE,   &opt_restart_if_exit,      "Restart child if exit (useful when running a command shell)", NULL, },
 
     { "version",    'v', G_OPTION_FLAG_IN_MAIN, G_OPTION_ARG_NONE,   &opt_show_version, "Print version information and exit", NULL, },
     { NULL },
@@ -157,16 +161,13 @@ if (!gdk_color_parse(g_key_file_get_string( keyfile, "colour scheme", "backgroun
 */
 
 
-static char*
-guess_shell (void)
-{
-    char *shell = getenv ("SHELL");
-    if (!shell) {
-        struct passwd *pw = getpwuid (getuid ());
-        shell = (pw) ? pw->pw_shell : "/bin/sh";
-    }
-    /* Return a copy */
-    return g_strdup (shell);
+static char* guess_shell(void) {
+	char *shell = getenv("SHELL");
+	if (!shell) {
+		struct passwd *pw = getpwuid(getuid());
+		shell = (pw) ? pw->pw_shell : "/bin/sh";
+	}
+	return g_strdup(shell); // Return a copy
 }
 
 
@@ -340,15 +341,12 @@ gboolean event_button(GtkWidget *widget, GdkEventButton *button_event) {
 
 //----------------------------------------------------------------------------
 
-GtkWidget *
-new_desktop_window(GdkScreen* screen, gint mon_init)
+static void terminal_fork(VteTerminal *vtterm)
 {
-	GtkWidget *window = NULL;
-	GtkWidget *vtterm = NULL;
-	GError    *gerror = NULL;
+	GError *gerror = NULL;
 
     gchar **command = NULL;
-    gint    cmdlen = 0;
+    gint cmdlen = 0;
 
     if (!opt_command)
         opt_command = guess_shell ();
@@ -358,32 +356,9 @@ new_desktop_window(GdkScreen* screen, gint mon_init)
         exit (EXIT_FAILURE);
     }
 
-
-    window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_icon_name (GTK_WINDOW (window), "terminal");
-    gtk_window_set_title (GTK_WINDOW (window), opt_title);
-
-	// we are desktop-window TODO
-    gtk_window_set_decorated (GTK_WINDOW (window), FALSE);
-    gtk_window_set_has_resize_grip (GTK_WINDOW (window), FALSE);
-    gtk_window_set_skip_taskbar_hint(GTK_WINDOW (window), TRUE);
-    gtk_window_set_skip_pager_hint(GTK_WINDOW (window), TRUE);
-    //gtk_window_maximize(GTK_WINDOW(window));
-
-    vtterm = vte_terminal_new ();
-    configure_term_widget (VTE_TERMINAL (vtterm));
-
-    // Exit when the child process is exited, or when the window is closed.
-    g_signal_connect (G_OBJECT (window), "delete-event", G_CALLBACK (gtk_main_quit), NULL);
-    g_signal_connect (G_OBJECT (vtterm), "child-exited", G_CALLBACK (gtk_main_quit), NULL);
-    // Handle keyboard shortcuts.
-    g_signal_connect (G_OBJECT (window), "key-press-event", G_CALLBACK (handle_key_press), vtterm);
-    // Handles clicks un URIs
-    g_signal_connect (G_OBJECT (vtterm), "button-press-event", G_CALLBACK (handle_mouse_press), NULL);
-
     g_assert (opt_workdir);
 
-    if (!vte_terminal_fork_command_full (VTE_TERMINAL (vtterm),
+    if (!vte_terminal_fork_command_full (vtterm,
                                          VTE_PTY_DEFAULT,
                                          opt_workdir,
                                          command,
@@ -398,17 +373,56 @@ new_desktop_window(GdkScreen* screen, gint mon_init)
         g_error_free (gerror);
         exit (EXIT_FAILURE);
     }
+}
+
+
+static void on_child_exited(VteTerminal *vtterm, gpointer userdata) {
+	if (opt_restart_if_exit) {
+		terminal_fork(vtterm);
+	} else {
+		gtk_main_quit(); // TODO hereinafter if > 1 terminal?
+	}
+}
+
+//----------------------------------------------------------------------------
+
+GtkWidget *
+new_desktop_window(GdkScreen* screen, gint mon_init)
+{
+	GtkWidget *window = NULL;
+	GtkWidget *vtterm = NULL;
+
+    window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_icon_name (GTK_WINDOW (window), "terminal");
+    gtk_window_set_title (GTK_WINDOW (window), opt_title);
+
+	// we are desktop-window
+    gtk_window_set_decorated (GTK_WINDOW (window), FALSE);
+    gtk_window_set_has_resize_grip (GTK_WINDOW (window), FALSE);
+    gtk_window_set_skip_taskbar_hint(GTK_WINDOW (window), TRUE);
+    gtk_window_set_skip_pager_hint(GTK_WINDOW (window), TRUE);
+
+    vtterm = vte_terminal_new ();
+    configure_term_widget (VTE_TERMINAL (vtterm));
+
+    // Exit when the child process is exited, or when the window is closed.
+    g_signal_connect (G_OBJECT (window), "delete-event", G_CALLBACK (gtk_main_quit), NULL);
+    g_signal_connect (G_OBJECT (vtterm), "child-exited", G_CALLBACK (on_child_exited), NULL);
+    // Handle keyboard shortcuts.
+    g_signal_connect (G_OBJECT (window), "key-press-event", G_CALLBACK (handle_key_press), vtterm);
+    // Handles clicks un URIs
+    g_signal_connect (G_OBJECT (vtterm), "button-press-event", G_CALLBACK (handle_mouse_press), NULL);
+
+    // run terminal
+    terminal_fork(VTE_TERMINAL (vtterm));
 
     gtk_container_add (GTK_CONTAINER (window), vtterm);
 
-    // размеры TODO
+    // sizes TODO listen changes?
     GdkRectangle geom;
-//    GdkScreen* screen = gtk_widget_get_screen((GtkWidget*)window);
     gdk_screen_get_monitor_geometry(screen, mon_init, &geom);
     gtk_window_set_default_size(GTK_WINDOW(window), geom.width, geom.height);
     gtk_window_move(GTK_WINDOW(window), geom.x, geom.y);
-    // вниз TODO
-    //gdk_window_lower(gtk_widget_get_window(window));
     gtk_window_set_type_hint(GTK_WINDOW(window), GDK_WINDOW_TYPE_HINT_DESKTOP);
 
     //gtk_widget_realize(window);
@@ -461,39 +475,36 @@ sdvt_desktop_manager_init(gint on_screen)
 static gboolean parse_command_line_options(int argc, char* argv[]) {
 	gboolean retval = TRUE;
 	GOptionContext *optctx = NULL;
-	GError    *gerror = NULL;
-    optctx = g_option_context_new ("- simple desktop virtual terminal");
-    g_option_context_set_help_enabled (optctx, TRUE);
-    g_option_context_add_main_entries (optctx, option_entries, NULL);
-    g_option_context_add_group (optctx, gtk_get_option_group (TRUE));
-    if (!g_option_context_parse (optctx, &argc, &argv, &gerror)) {
-        g_printerr ("%s: could not parse command line: %s\n", argv[0], gerror->message);
-        g_error_free (gerror);
-        retval = FALSE;
-    }
-    g_option_context_free (optctx);
-    optctx = NULL;
-    return retval;
+	GError *gerror = NULL;
+	optctx = g_option_context_new("- simple desktop virtual terminal");
+	g_option_context_set_help_enabled(optctx, TRUE);
+	g_option_context_add_main_entries(optctx, option_entries, NULL);
+	g_option_context_add_group(optctx, gtk_get_option_group(TRUE));
+	if (!g_option_context_parse(optctx, &argc, &argv, &gerror)) {
+		g_printerr("%s: could not parse command line: %s\n", argv[0], gerror->message);
+		g_error_free(gerror);
+		retval = FALSE;
+	}
+	g_option_context_free(optctx);
+	optctx = NULL;
+	return retval;
 }
 
 
-int
-main (int argc, char *argv[])
-{
-    if(!parse_command_line_options(argc, argv)) {
-    	return EXIT_FAILURE;
-    }
+int main(int argc, char *argv[]) {
+	if (!parse_command_line_options(argc, argv)) {
+		return EXIT_FAILURE;
+	}
 
-    if (opt_show_version) {
-      printf("%s \n", VERSION);
-      return EXIT_SUCCESS;
-    }
+	if (opt_show_version) {
+		printf("%s \n", VERSION);
+		return EXIT_SUCCESS;
+	}
 
-    gtk_init (&argc, &argv);
+	gtk_init(&argc, &argv);
 
-    sdvt_desktop_manager_init(opt_one_screen ? gdk_screen_get_number(gdk_screen_get_default()) : -1);
+	sdvt_desktop_manager_init(opt_one_screen ? gdk_screen_get_number(gdk_screen_get_default()) : -1);
 
-    gtk_main ();
-    return EXIT_SUCCESS;
+	gtk_main();
+	return EXIT_SUCCESS;
 }
-

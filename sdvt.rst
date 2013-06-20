@@ -70,6 +70,9 @@ included below.
 --browser=COMMAND
               Browser command.
 
+--restart-if-exit
+              Restart child if exit (useful when running a command shell)
+
 -v, --version
               Print version information and exit.
 
