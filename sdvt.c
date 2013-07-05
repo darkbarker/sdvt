@@ -104,9 +104,7 @@ static const gchar uri_regexp[] = "(ftp|http)s?://[-a-zA-Z0-9.?$%&/=_~#.,:;+]*";
 static const gchar word_chars[] = "-A-Za-z0-9,./?%&#@_~";
 
 
-static void
-configure_term_widget (VteTerminal *vtterm)
-{
+static void configure_term_widget (VteTerminal *vtterm) {
     gint match_tag;
 
     g_assert (vtterm);
@@ -207,6 +205,48 @@ handle_key_press (GtkWidget *widget, GdkEventKey *event, gpointer userdata)
     return FALSE;
 }
 
+
+/*
+http://stackoverflow.com/questions/2598580/gtk-get-usable-area-of-each-monitor-excluding-panels
+*/
+void resize_workarea(GdkScreen* screen, gint monitor, GtkWidget *window)
+{
+	GdkRectangle warea;
+#if GTK_CHECK_VERSION(3, 4, 0)
+    gdk_screen_get_monitor_workarea(screen, monitor, &warea);
+#else
+    // there is the old way (you can see, for example, in PcManFm: desktop.c), but i do not want to support it
+	#warning need GTK 3.4 for get workarea
+    gdk_screen_get_monitor_geometry(screen, monitor, &warea);
+#endif
+    gtk_window_set_default_size(GTK_WINDOW(window), warea.width, warea.height);
+    gtk_window_move(GTK_WINDOW(window), warea.x, warea.y);
+}
+
+/*
+static GdkFilterReturn on_root_event(GdkXEvent *xevent, GdkEvent *event, gpointer data)
+{
+    XPropertyEvent * evt = (XPropertyEvent*) xevent;
+    FmDesktop* self = (FmDesktop*)data;
+    if (evt->type == PropertyNotify)
+    {
+        if(evt->atom == XA_NET_WORKAREA)
+            update_working_area(self);
+        else if(evt->atom == XA_NET_CURRENT_DESKTOP)
+        {
+            gint desktop = get_desktop_for_root_window(gdk_screen_get_root_window(
+                                    gtk_widget_get_screen(GTK_WIDGET(data))));
+            if(desktop >= 0)
+            {
+                self->cur_desktop = (guint)desktop;
+                if(!app_config->wallpaper_common)
+                    update_background(self, -1);
+            }
+        }
+    }
+    return GDK_FILTER_CONTINUE;
+}
+*/
 
 /* setup the whacky geometry hints for gtk */
 /*
@@ -341,8 +381,7 @@ gboolean event_button(GtkWidget *widget, GdkEventButton *button_event) {
 
 //----------------------------------------------------------------------------
 
-static void terminal_fork(VteTerminal *vtterm)
-{
+static void terminal_fork(VteTerminal *vtterm) {
 	GError *gerror = NULL;
 
     gchar **command = NULL;
@@ -418,11 +457,14 @@ new_desktop_window(GdkScreen* screen, gint mon_init)
 
     gtk_container_add (GTK_CONTAINER (window), vtterm);
 
+    resize_workarea(screen, mon_init, window);
+
     // sizes TODO listen changes?
-    GdkRectangle geom;
-    gdk_screen_get_monitor_geometry(screen, mon_init, &geom);
-    gtk_window_set_default_size(GTK_WINDOW(window), geom.width, geom.height);
-    gtk_window_move(GTK_WINDOW(window), geom.x, geom.y);
+    //GdkRectangle geom;
+    //gdk_screen_get_monitor_geometry(screen, mon_init, &geom);
+    //gtk_window_set_default_size(GTK_WINDOW(window), geom.width, geom.height);
+    //gtk_window_move(GTK_WINDOW(window), geom.x, geom.y);
+
     gtk_window_set_type_hint(GTK_WINDOW(window), GDK_WINDOW_TYPE_HINT_DESKTOP);
 
     //gtk_widget_realize(window);
@@ -435,8 +477,7 @@ new_desktop_window(GdkScreen* screen, gint mon_init)
 //static guint n_screens = 0;
 
 
-void
-sdvt_desktop_manager_init(gint on_screen)
+void sdvt_desktop_manager_init(gint on_screen)
 {
 	GdkDisplay * gdpy;
 	guint n_scr, n_mon, scr, mon;
@@ -453,7 +494,7 @@ sdvt_desktop_manager_init(gint on_screen)
     {
         GdkScreen* screen = gdk_display_get_screen(gdpy, scr);
         n_mon = gdk_screen_get_n_monitors(screen);
-        g_printf("n_mon[%d]=%d\n",scr,n_mon);
+        g_printf("n_mon[scr=%d]=%d\n",scr,n_mon);
         for(mon = 0; mon < n_mon; mon++)
         {
             gint mon_init = (on_screen < 0 || on_screen == (int)scr) ? (int)mon : (mon ? -2 : -1);
