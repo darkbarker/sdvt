@@ -2,7 +2,7 @@
  * sdvt.c
  * Copyright (C) 2013 Dmitry Medvedev <barkdarker@gmail.com>
  *
- * Distributed under terms of the GPL2 license. TODO
+ * Distributed under terms of the GPL2 license.
  */
 
 #include <glib.h>
@@ -14,11 +14,15 @@
 #include <pwd.h>
 
 #define CHECK_FLAGS(a, f) (((a) & (f)) == (f))
+//XXX
+#ifndef VERSION
+#define VERSION "unknown"
+#endif
 
+static const gchar   *WIN_TITLE   = "sdvt";
 
 static const gchar   *opt_workdir = ".";
 static const gchar   *opt_command = NULL;
-static const gchar   *opt_title   = "sdvt";
 static const gchar   *opt_font    = "monospace 10";
 static       gboolean opt_bold    = FALSE;
 static       gint     opt_scroll  = 1024;
@@ -39,7 +43,6 @@ static       gchar   *opt_browser_command = NULL;
 
 static       gboolean opt_restart_if_exit = FALSE;
 
-static const gchar   *VERSION   = "0.666";
 
 static const GOptionEntry option_entries[] =
 {
@@ -51,7 +54,7 @@ static const GOptionEntry option_entries[] =
     { "one-screen", 'o', G_OPTION_FLAG_IN_MAIN, G_OPTION_ARG_NONE,   &opt_one_screen,   "One screen", NULL, },
 
     { "bg-transparent",   '\0', G_OPTION_FLAG_IN_MAIN, G_OPTION_ARG_NONE,     &opt_bg_transparent, "Background transparent", NULL, },
-    { "bg-saturation",    '\0', G_OPTION_FLAG_IN_MAIN, G_OPTION_ARG_DOUBLE,   &opt_bg_saturation,  "Background saturation", "DOUBLE", },
+    { "bg-saturation",    '\0', G_OPTION_FLAG_IN_MAIN, G_OPTION_ARG_DOUBLE,   &opt_bg_saturation,  "Background saturation (floating point value between 0.0 and 1.0)", "FLOAT", },
     { "bg-image",         '\0', G_OPTION_FLAG_IN_MAIN, G_OPTION_ARG_FILENAME, &opt_bg_image,       "Background file image", "FILENAME", },
 
     { "scroll-keystroke", '\0', G_OPTION_FLAG_IN_MAIN, G_OPTION_ARG_NONE,   &opt_scroll_on_keystroke,  "Scroll on keystroke", NULL, },
@@ -69,8 +72,8 @@ static const GOptionEntry option_entries[] =
 
 
 /*
- * Set of colors as used by GNOME-Terminal for the “Linux” color scheme:
- * http://git.gnome.org/browse/gnome-terminal/tree/src/terminal-profile.c
+ * Set of colors as used by GNOME-Terminal for the "Linux" color scheme:
+ * http://git.gnome.org/browse/gnome-terminal/tree/src/terminal-profile.c (deleted at 2012-05-03)
  */
 static const GdkColor color_palette[] =
 {
@@ -141,6 +144,7 @@ static void configure_term_widget (VteTerminal *vtterm) {
 
 
 /*
+TODO
 config->colour_palette = (GdkColor *) g_malloc(sizeof(GdkColor) * DEFAULT_PALETTE_SIZE);
 for (i=0; i < DEFAULT_PALETTE_SIZE; i++){
   g_snprintf(addid, 3, "%d", i);
@@ -169,9 +173,7 @@ static char* guess_shell(void) {
 }
 
 
-static gboolean
-handle_key_press (GtkWidget *widget, GdkEventKey *event, gpointer userdata)
-{
+static gboolean handle_key_press (GtkWidget *widget, GdkEventKey *event, gpointer userdata) {
     g_assert (widget);
     g_assert (event);
     g_assert (userdata);
@@ -181,46 +183,39 @@ handle_key_press (GtkWidget *widget, GdkEventKey *event, gpointer userdata)
         return FALSE;
     }
 
-    //TODO
-    /*
-    window *w = userdata;
-    guint(g) = event->keyval;
-    if ((event->state & (GDK_CONTROL_MASK|GDK_SHIFT_MASK)) == (GDK_CONTROL_MASK|GDK_SHIFT_MASK))
-    {
-        if (g == GDK_KEY_N) {
-          new_window();
-          return TRUE;
-        }
-        if (g == GDK_KEY_V) {
-          vte_terminal_paste_clipboard(VTE_TERMINAL(get_current_term(w)->vte));
-          return TRUE;
-        }
-        if (g == GDK_KEY_C) {
-          vte_terminal_copy_clipboard(VTE_TERMINAL(get_current_term(w)->vte));
-          return TRUE;
-        }
-    }
-    */
+	GtkWidget *vtterm = userdata;
+	guint(g) = event->keyval;
+	if ((event->state & (GDK_CONTROL_MASK|GDK_SHIFT_MASK)) == (GDK_CONTROL_MASK|GDK_SHIFT_MASK))
+	{
+		if (g == GDK_KEY_C) {
+			vte_terminal_copy_clipboard(VTE_TERMINAL(vtterm));
+			vte_terminal_copy_primary(VTE_TERMINAL (vtterm));
+			return TRUE;
+		}
+		if (g == GDK_KEY_V) {
+			vte_terminal_paste_clipboard(VTE_TERMINAL(vtterm));
+			return TRUE;
+		}
+	}
 
-    return FALSE;
+	return FALSE;
 }
 
 
 /*
 http://stackoverflow.com/questions/2598580/gtk-get-usable-area-of-each-monitor-excluding-panels
 */
-void resize_workarea(GdkScreen* screen, gint monitor, GtkWidget *window)
-{
+void resize_workarea(GdkScreen* screen, gint monitor, GtkWidget *window) {
 	GdkRectangle warea;
 #if GTK_CHECK_VERSION(3, 4, 0)
-    gdk_screen_get_monitor_workarea(screen, monitor, &warea);
+	gdk_screen_get_monitor_workarea(screen, monitor, &warea);
 #else
-    // there is the old way (you can see, for example, in PcManFm: desktop.c), but i do not want to support it
+	// there is the old way (you can see, for example, in PcManFm: desktop.c), but i do not want to support it
 	#warning need GTK 3.4 for get workarea
-    gdk_screen_get_monitor_geometry(screen, monitor, &warea);
+	gdk_screen_get_monitor_geometry(screen, monitor, &warea);
 #endif
-    gtk_window_set_default_size(GTK_WINDOW(window), warea.width, warea.height);
-    gtk_window_move(GTK_WINDOW(window), warea.x, warea.y);
+	gtk_window_set_default_size(GTK_WINDOW(window), warea.width, warea.height);
+	gtk_window_move(GTK_WINDOW(window), warea.x, warea.y);
 }
 
 /*
@@ -248,68 +243,45 @@ static GdkFilterReturn on_root_event(GdkXEvent *xevent, GdkEvent *event, gpointe
 }
 */
 
-/* setup the whacky geometry hints for gtk */
-/*
-static void tab_geometry_hints(term *t) {
-  // I dont need to call this every time, since the char width only changes
-  // once, maybe I'll make hints and border global and reuse them
-  GdkGeometry hints;
-  GtkBorder *border;
-  gint char_width, char_height;
-  gtk_widget_style_get(GTK_WIDGET(t->vte), "inner-border", &border, NULL);
 
-  char_width = vte_terminal_get_char_width(VTE_TERMINAL(t->vte));
-  char_height = vte_terminal_get_char_height(VTE_TERMINAL(t->vte));
-
-  hints.min_width = char_width + border->left + border->right;
-  hints.min_height = char_height + border->top + border->bottom;
-  hints.base_width = border->left + border->right;
-  hints.base_height = border->top + border->bottom;
-  hints.width_inc = char_width;
-  hints.height_inc = char_height;
-
-  gtk_window_set_geometry_hints(
-      GTK_WINDOW(t->w->win),
-      GTK_WIDGET(t->vte),
-      &hints,
-      GDK_HINT_RESIZE_INC | GDK_HINT_MIN_SIZE | GDK_HINT_BASE_SIZE);
+static const gchar* guess_browser(void) {
+	if (!opt_browser_command) {
+		if (g_getenv("BROWSER")) {
+			opt_browser_command = g_strdup(g_getenv("BROWSER"));
+		} else {
+			opt_browser_command = g_find_program_in_path("xdg-open");
+			if (!opt_browser_command) {
+				opt_browser_command = g_find_program_in_path("gnome-open");
+				if (!opt_browser_command) {
+					opt_browser_command = g_find_program_in_path("exo-open");
+					if (!opt_browser_command) {
+						opt_browser_command = g_find_program_in_path("firefox");
+					}
+				}
+			}
+		}
+	}
+	return opt_browser_command;
 }
-*/
 
 
-static const gchar*
-guess_browser (void)
-{
-    static gchar *browser = NULL;
-
-    if (opt_browser_command)
-    	browser = opt_browser_command; //TODO проверить
-
-    if (!browser) {
-        if (g_getenv ("BROWSER")) {
-            browser = g_strdup (g_getenv ("BROWSER"));
-        }
-        else {
-            browser = g_find_program_in_path ("xdg-open");
-            if (!browser) {
-                browser = g_find_program_in_path ("gnome-open");
-                if (!browser) {
-                    browser = g_find_program_in_path ("exo-open");
-                    if (!browser) {
-                        browser = g_find_program_in_path ("firefox");
-                    }
-                }
-            }
-        }
+static gboolean launch_url(char *url) {
+    GError *error = NULL;
+    gchar *cmdline[] = { (gchar*)guess_browser(), url, NULL };
+    if (!cmdline[0]) {
+        g_printerr ("Could not determine browser to use.\n");
+        return FALSE;
     }
-
-    return browser;
+    if (!g_spawn_async (NULL, cmdline, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, &error)) {
+        g_printerr ("Could not launch browser: %s\n", error->message);
+        g_error_free (error);
+        return FALSE;
+    }
+    return TRUE;
 }
 
 
-static gboolean
-handle_mouse_press (VteTerminal *vtterm, GdkEventButton *event, gpointer userdata)
-{
+static gboolean handle_mouse_press (VteTerminal *vtterm, GdkEventButton *event, gpointer userdata) {
     gchar *match = NULL;
     glong col, row;
     gint match_tag;
@@ -317,67 +289,20 @@ handle_mouse_press (VteTerminal *vtterm, GdkEventButton *event, gpointer userdat
     g_assert (vtterm);
     g_assert (event);
 
-    if (event->type != GDK_BUTTON_PRESS)
+    if (event->type != GDK_BUTTON_PRESS || event->button != 1 || !CHECK_FLAGS (event->state, GDK_CONTROL_MASK) )
         return FALSE;
 
     row = (glong) (event->y) / vte_terminal_get_char_height (vtterm);
     col = (glong) (event->x) / vte_terminal_get_char_width  (vtterm);
 
     if ((match = vte_terminal_match_check (vtterm, col, row, &match_tag)) != NULL) {
-        if (event->button == 1 && CHECK_FLAGS (event->state, GDK_CONTROL_MASK)) {
-            GError *error = NULL;
-            gchar *cmdline[] = {
-                (gchar*) guess_browser (),
-                match,
-                NULL
-            };
-
-            if (!cmdline[0]) {
-                g_printerr ("Could not determine browser to use.\n");
-            }
-            else if (!g_spawn_async (NULL,
-                                     cmdline,
-                                     NULL,
-                                     G_SPAWN_SEARCH_PATH,
-                                     NULL,
-                                     NULL,
-                                     NULL,
-                                     &error))
-            {
-                g_printerr ("Could not launch browser: %s", error->message);
-                g_error_free (error);
-            }
-        }
+        launch_url(match);
         g_free (match);
         return TRUE;
     }
 
     return FALSE;
 }
-
-/*
-static void launch_url(char *url) {
-  g_spawn_command_line_async(g_strconcat(config->browser_command, " ", url, NULL), NULL);
-}
-
-gboolean event_button(GtkWidget *widget, GdkEventButton *button_event) {
-
-  int ret = 0;
-  gchar *match;
-
-  if(button_event->button == 1) {
-    match = vte_terminal_match_check(VTE_TERMINAL(widget),
-        button_event->x / vte_terminal_get_char_width (VTE_TERMINAL (widget)),
-        button_event->y / vte_terminal_get_char_height (VTE_TERMINAL (widget)),
-        &ret);
-    if (match) {
-      launch_url(match);
-      return TRUE;
-    }
-  }
-  return FALSE;
-}
-*/
 
 //----------------------------------------------------------------------------
 
@@ -397,17 +322,7 @@ static void terminal_fork(VteTerminal *vtterm) {
 
     g_assert (opt_workdir);
 
-    if (!vte_terminal_fork_command_full (vtterm,
-                                         VTE_PTY_DEFAULT,
-                                         opt_workdir,
-                                         command,
-                                         NULL,
-                                         G_SPAWN_SEARCH_PATH,
-                                         NULL,
-                                         NULL,
-                                         NULL,
-                                         &gerror))
-    {
+    if (!vte_terminal_fork_command_full (vtterm, VTE_PTY_DEFAULT, opt_workdir, command, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, &gerror)) {
         g_printerr ("could not spawn shell: %s\n", gerror->message);
         g_error_free (gerror);
         exit (EXIT_FAILURE);
@@ -418,22 +333,19 @@ static void terminal_fork(VteTerminal *vtterm) {
 static void on_child_exited(VteTerminal *vtterm, gpointer userdata) {
 	if (opt_restart_if_exit) {
 		terminal_fork(vtterm);
-	} else {
-		gtk_main_quit(); // TODO hereinafter if > 1 terminal?
 	}
+	// otherwise, close the application is not necessary, obviously.
 }
 
 //----------------------------------------------------------------------------
 
-GtkWidget *
-new_desktop_window(GdkScreen* screen, gint mon_init)
-{
+GtkWidget * new_desktop_window(GdkScreen* screen, gint mon_init) {
 	GtkWidget *window = NULL;
 	GtkWidget *vtterm = NULL;
 
     window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
     gtk_window_set_icon_name (GTK_WINDOW (window), "terminal");
-    gtk_window_set_title (GTK_WINDOW (window), opt_title);
+    gtk_window_set_title (GTK_WINDOW (window), WIN_TITLE);
 
 	// we are desktop-window
     gtk_window_set_decorated (GTK_WINDOW (window), FALSE);
@@ -457,13 +369,8 @@ new_desktop_window(GdkScreen* screen, gint mon_init)
 
     gtk_container_add (GTK_CONTAINER (window), vtterm);
 
-    resize_workarea(screen, mon_init, window);
-
     // sizes TODO listen changes?
-    //GdkRectangle geom;
-    //gdk_screen_get_monitor_geometry(screen, mon_init, &geom);
-    //gtk_window_set_default_size(GTK_WINDOW(window), geom.width, geom.height);
-    //gtk_window_move(GTK_WINDOW(window), geom.x, geom.y);
+    resize_workarea(screen, mon_init, window);
 
     gtk_window_set_type_hint(GTK_WINDOW(window), GDK_WINDOW_TYPE_HINT_DESKTOP);
 
@@ -477,8 +384,7 @@ new_desktop_window(GdkScreen* screen, gint mon_init)
 //static guint n_screens = 0;
 
 
-void sdvt_desktop_manager_init(gint on_screen)
-{
+void sdvt_desktop_manager_init(gint on_screen) {
 	GdkDisplay * gdpy;
 	guint n_scr, n_mon, scr, mon;
 

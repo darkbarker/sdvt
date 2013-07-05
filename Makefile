@@ -12,6 +12,15 @@ PKG_MODULES := vte-2.90 gtk+-3.0
 PKG_CFLAGS  := $(shell pkg-config --cflags $(PKG_MODULES))
 PKG_LDLIBS  := $(shell pkg-config --libs   $(PKG_MODULES))
 
+
+ifeq ($(origin VER), command line)
+	VERSION := $(VER)
+else
+	VERSION := $(shell git describe --abbrev=4 --dirty --always)
+endif
+CFLAGS += -DVERSION=\"$(VERSION)\"
+
+
 all: sdvt sdvt.1
 
 sdvt: CFLAGS += $(PKG_CFLAGS)
@@ -37,15 +46,9 @@ uninstall:
 	$(RM) $(DESTDIR)$(PREFIX)/bin/sdvt
 	$(RM) $(DESTDIR)$(MANPREFIX)/man1/sdvt.1
 
-ifeq ($(origin TAG),command line)
-VERSION := $(TAG)
-else
-VERSION := $(shell git tag 2> /dev/null | tail -1)
-endif
-
 dist:
 ifeq ($(strip $(VERSION)),)
-	@echo "ERROR: Either Git is not installed, or no tags were found"
+	@echo "ERROR: Impossible to get a version from Git (or specify VER at the as a command line parameter of 'make')."
 else
 	git archive --prefix=sdvt-$(VERSION)/ $(VERSION) | xz -c > sdvt-$(VERSION).tar.xz
 endif

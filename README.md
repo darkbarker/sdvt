@@ -11,6 +11,7 @@ It replaces the traditional file manager. Supports desktop wallpaper.
  * Scrollback buffer.
  * Clickable URLs.
  * Background image.
+ * Copy/Paste (Ctrl+Shift+C, Ctrl+Shift+V)
 
 ## Contributions
 
@@ -28,6 +29,6 @@ My thanks to the projects:
 
 ## License
 
-sdvt is released under the GPL license. For further information visit:
+sdvt is released under the GPL2 license. For further information visit:
 
  * http://www.gnu.org/licenses/gpl.html
