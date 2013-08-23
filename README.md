@@ -11,7 +11,9 @@ It replaces the traditional file manager. Supports desktop wallpaper.
  * Scrollback buffer.
  * Clickable URLs.
  * Background image.
- * Copy/Paste (Ctrl+Shift+C, Ctrl+Shift+V)
+ * Copy/Paste (Ctrl+Shift+C, Ctrl+Shift+V).
+ * Execute selection (Ctrl+Shift+X).
+ * Optional scrollbar.
 
 ## Contributions
 
@@ -26,6 +28,7 @@ My thanks to the projects:
  * dwt
  * svte
  * pcmanfm
+ * tinyterm
 
 ## License
 

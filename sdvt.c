@@ -1,7 +1,6 @@
 /*
  * sdvt.c
  * Copyright (C) 2013 Dmitry Medvedev <barkdarker@gmail.com>
- *
  * Distributed under terms of the GPL2 license.
  */
 
@@ -13,8 +12,6 @@
 #include <sys/types.h>
 #include <pwd.h>
 
-#define CHECK_FLAGS(a, f) (((a) & (f)) == (f))
-//XXX
 #ifndef VERSION
 #define VERSION "unknown"
 #endif
@@ -39,6 +36,8 @@ static       gboolean opt_scroll_on_output = FALSE;
 static       gboolean opt_audible_bell = FALSE;
 static       gboolean opt_visible_bell = FALSE;
 
+static       gboolean opt_scrollbar = FALSE;
+
 static       gchar   *opt_browser_command = NULL;
 
 static       gboolean opt_restart_if_exit = FALSE;
@@ -61,6 +60,8 @@ static const GOptionEntry option_entries[] =
     { "scroll-output",    '\0', G_OPTION_FLAG_IN_MAIN, G_OPTION_ARG_NONE,   &opt_scroll_on_output,     "Scroll on output", NULL, },
     { "audible-bell",     '\0', G_OPTION_FLAG_IN_MAIN, G_OPTION_ARG_NONE,   &opt_audible_bell,         "Audible bell", NULL, },
     { "visible-bell",     '\0', G_OPTION_FLAG_IN_MAIN, G_OPTION_ARG_NONE,   &opt_visible_bell,         "Visible bell", NULL, },
+
+    { "scrollbar",        'l',  G_OPTION_FLAG_IN_MAIN, G_OPTION_ARG_NONE,   &opt_scrollbar,            "Vertical scrollbar", NULL, },
 
     { "browser",          '\0', G_OPTION_FLAG_IN_MAIN, G_OPTION_ARG_STRING, &opt_browser_command,      "Browser command", "COMMAND", },
 
@@ -101,10 +102,10 @@ static const GdkColor color_bg = { 0, 0x0000, 0x0000, 0x0000 };
 static const GdkColor color_fg = { 0, 0xdddd, 0xdddd, 0xdddd };
 
 /* Regexp used to match URIs and allow clicking them */
-static const gchar uri_regexp[] = "(ftp|http)s?://[-a-zA-Z0-9.?$%&/=_~#.,:;+]*";
+static const gchar URI_REGEXP_PATTERN[] = "(ftp|http)s?://[-a-zA-Z0-9.?$%&/=_~#.,:;+]*";
 
 /* Characters considered part of a word. Simplifies double-click selection */
-static const gchar word_chars[] = "-A-Za-z0-9,./?%&#@_~";
+static const gchar WORD_CHARS[] = "-A-Za-z0-9,./?%&#@_~";
 
 
 static void configure_term_widget (VteTerminal *vtterm) {
@@ -128,39 +129,19 @@ static void configure_term_widget (VteTerminal *vtterm) {
     vte_terminal_set_font_from_string    (vtterm, opt_font);
     vte_terminal_set_allow_bold          (vtterm, opt_bold);
     vte_terminal_set_scrollback_lines    (vtterm, opt_scroll);
-    vte_terminal_set_word_chars          (vtterm, word_chars);
+    vte_terminal_set_word_chars          (vtterm, WORD_CHARS);
     vte_terminal_set_cursor_blink_mode   (vtterm, VTE_CURSOR_BLINK_OFF);
     vte_terminal_set_cursor_shape        (vtterm, VTE_CURSOR_SHAPE_BLOCK);
     vte_terminal_set_colors              (vtterm, &color_fg, &color_bg, color_palette, COLOR_PALETTE_LENGTH);
 
     match_tag = vte_terminal_match_add_gregex (vtterm,
-                                               g_regex_new (uri_regexp,
+                                               g_regex_new (URI_REGEXP_PATTERN,
                                                             G_REGEX_CASELESS,
                                                             G_REGEX_MATCH_NOTEMPTY,
                                                             NULL),
                                                0);
     vte_terminal_match_set_cursor_type (vtterm, match_tag, GDK_HAND2);
 }
-
-
-/*
-TODO
-config->colour_palette = (GdkColor *) g_malloc(sizeof(GdkColor) * DEFAULT_PALETTE_SIZE);
-for (i=0; i < DEFAULT_PALETTE_SIZE; i++){
-  g_snprintf(addid, 3, "%d", i);
-  gdk_color_parse(g_key_file_get_string(keyfile, "colour scheme", addid , NULL), &config->colour_palette[i]);
-}
-
-if (!gdk_color_parse(g_key_file_get_string( keyfile, "colour scheme", "foreground", NULL), &config->foreground)){
-  gdk_color_parse(DEFAULT_FOREGROUND_COLOR, &config->foreground);
-  g_warning("Using default foreground color");
-}
-
-if (!gdk_color_parse(g_key_file_get_string( keyfile, "colour scheme", "background", NULL), &config->background)){
-  gdk_color_parse(DEFAULT_BACKGROUND_COLOR, &config->background);
-  g_warning("Using default background color");
-}
-*/
 
 
 static char* guess_shell(void) {
@@ -170,6 +151,28 @@ static char* guess_shell(void) {
 		shell = (pw) ? pw->pw_shell : "/bin/sh";
 	}
 	return g_strdup(shell); // Return a copy
+}
+
+
+static void execute_selection_callback (GtkClipboard *clipboard, const char *text, gpointer data) {
+	GError *error = NULL;
+	gchar *cmdline[] = { "xdg-open", (char*)text, NULL };
+	if (!g_spawn_async (NULL, cmdline, NULL, G_SPAWN_SEARCH_PATH, NULL, NULL, NULL, &error)) {
+	    g_printerr ("Could not launch: %s\n", error->message);
+	    g_error_free (error);
+	    return;
+	}
+}
+
+
+static void execute_selection (GtkWidget *terminal) {
+	GdkDisplay *display;
+	GtkClipboard *clipboard;
+
+	vte_terminal_copy_primary (VTE_TERMINAL (terminal));
+	display = gtk_widget_get_display (terminal);
+	clipboard = gtk_clipboard_get_for_display (display, GDK_SELECTION_PRIMARY);
+	gtk_clipboard_request_text (clipboard, execute_selection_callback, NULL);
 }
 
 
@@ -196,15 +199,16 @@ static gboolean handle_key_press (GtkWidget *widget, GdkEventKey *event, gpointe
 			vte_terminal_paste_clipboard(VTE_TERMINAL(vtterm));
 			return TRUE;
 		}
+		if (g == GDK_KEY_X) {
+			execute_selection(vtterm);
+			return TRUE;
+		}
 	}
 
 	return FALSE;
 }
 
 
-/*
-http://stackoverflow.com/questions/2598580/gtk-get-usable-area-of-each-monitor-excluding-panels
-*/
 void resize_workarea(GdkScreen* screen, gint monitor, GtkWidget *window) {
 	GdkRectangle warea;
 #if GTK_CHECK_VERSION(3, 4, 0)
@@ -251,13 +255,7 @@ static const gchar* guess_browser(void) {
 		} else {
 			opt_browser_command = g_find_program_in_path("xdg-open");
 			if (!opt_browser_command) {
-				opt_browser_command = g_find_program_in_path("gnome-open");
-				if (!opt_browser_command) {
-					opt_browser_command = g_find_program_in_path("exo-open");
-					if (!opt_browser_command) {
-						opt_browser_command = g_find_program_in_path("firefox");
-					}
-				}
+				opt_browser_command = g_find_program_in_path("firefox");
 			}
 		}
 	}
@@ -289,7 +287,7 @@ static gboolean handle_mouse_press (VteTerminal *vtterm, GdkEventButton *event, 
     g_assert (vtterm);
     g_assert (event);
 
-    if (event->type != GDK_BUTTON_PRESS || event->button != 1 || !CHECK_FLAGS (event->state, GDK_CONTROL_MASK) )
+    if (event->type != GDK_BUTTON_PRESS || event->button != 1 || !(((event->state) & (GDK_CONTROL_MASK)) == (GDK_CONTROL_MASK)) )
         return FALSE;
 
     row = (glong) (event->y) / vte_terminal_get_char_height (vtterm);
@@ -342,6 +340,7 @@ static void on_child_exited(VteTerminal *vtterm, gpointer userdata) {
 GtkWidget * new_desktop_window(GdkScreen* screen, gint mon_init) {
 	GtkWidget *window = NULL;
 	GtkWidget *vtterm = NULL;
+	GtkWidget *scrollbar, *dbox = NULL;
 
     window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
     gtk_window_set_icon_name (GTK_WINDOW (window), "terminal");
@@ -367,12 +366,21 @@ GtkWidget * new_desktop_window(GdkScreen* screen, gint mon_init) {
     // run terminal
     terminal_fork(VTE_TERMINAL (vtterm));
 
-    gtk_container_add (GTK_CONTAINER (window), vtterm);
+    if(opt_scrollbar) {
+    	scrollbar = gtk_scrollbar_new(GTK_ORIENTATION_VERTICAL, gtk_scrollable_get_vadjustment( GTK_SCROLLABLE(vtterm) ) );
+    	dbox = gtk_box_new (GTK_ORIENTATION_HORIZONTAL, 0);
+        gtk_box_pack_start (GTK_BOX (dbox), vtterm, TRUE, TRUE, 0);
+        gtk_box_pack_start (GTK_BOX (dbox), scrollbar, FALSE, FALSE, 0);
+        gtk_container_add (GTK_CONTAINER (window), dbox);
+	} else {
+    	gtk_container_add (GTK_CONTAINER (window), vtterm);
+    }
 
     // sizes TODO listen changes?
     resize_workarea(screen, mon_init, window);
 
     gtk_window_set_type_hint(GTK_WINDOW(window), GDK_WINDOW_TYPE_HINT_DESKTOP);
+    // gtk_window_set_geometry_hints not need
 
     //gtk_widget_realize(window);
     gtk_widget_show_all(window);
@@ -414,8 +422,6 @@ void sdvt_desktop_manager_init(gint on_screen) {
             new_desktop_window(screen, mon_init);
         }
     }
-
-    //gtk_window_set_title(GTK_WINDOW(t->w->win), title); TODO
 }
 
 

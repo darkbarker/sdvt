@@ -91,5 +91,5 @@ ENVIRONMENT
 
 ``SHELL`` - default command (otherwise getpwuid, "/bin/sh").
 
-``BROWSER`` - default browser command (otherwise "xdg-open", "gnome-open", "exo-open", "firefox")
+``BROWSER`` - default browser command (otherwise "xdg-open", "firefox")
 

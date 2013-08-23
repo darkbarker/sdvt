@@ -1,0 +1,19 @@
+configure palette
+
+config->colour_palette = (GdkColor *) g_malloc(sizeof(GdkColor) * DEFAULT_PALETTE_SIZE);
+for (i=0; i < DEFAULT_PALETTE_SIZE; i++){
+  g_snprintf(addid, 3, "%d", i);
+  gdk_color_parse(g_key_file_get_string(keyfile, "colour scheme", addid , NULL), &config->colour_palette[i]);
+}
+
+if (!gdk_color_parse(g_key_file_get_string( keyfile, "colour scheme", "foreground", NULL), &config->foreground)){
+  gdk_color_parse(DEFAULT_FOREGROUND_COLOR, &config->foreground);
+  g_warning("Using default foreground color");
+}
+
+if (!gdk_color_parse(g_key_file_get_string( keyfile, "colour scheme", "background", NULL), &config->background)){
+  gdk_color_parse(DEFAULT_BACKGROUND_COLOR, &config->background);
+  g_warning("Using default background color");
+}
+
+--------------------------------------------------
