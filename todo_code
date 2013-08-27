@@ -17,3 +17,13 @@ if (!gdk_color_parse(g_key_file_get_string( keyfile, "colour scheme", "backgroun
 }
 
 --------------------------------------------------
+
+sdvt_desktop_manager_init
+desktop - GObject?
+see pcmanfm desktop.c 
+
+--------------------------------------------------
+
+improve case multiple monitors and screens
+
+--------------------------------------------------

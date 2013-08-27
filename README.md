@@ -13,6 +13,7 @@ It replaces the traditional file manager. Supports desktop wallpaper.
  * Background image.
  * Copy/Paste (Ctrl+Shift+C, Ctrl+Shift+V).
  * Execute selection (Ctrl+Shift+X).
+ * Correctly uses the monitor workarea.
  * Optional scrollbar.
 
 ## Contributions
