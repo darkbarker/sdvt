@@ -239,6 +239,7 @@ void resize_workarea(GdkScreen* screen, gint monitor, GtkWidget *window) {
 	gdk_screen_get_monitor_geometry(screen, monitor, &warea);
 #endif
 	gtk_window_set_default_size(GTK_WINDOW(window), warea.width, warea.height);
+	gtk_window_resize(GTK_WINDOW(window), warea.width, warea.height);
 	gtk_window_move(GTK_WINDOW(window), warea.x, warea.y);
 }
 
