@@ -135,6 +135,7 @@ static void configure_term_widget (VteTerminal *vtterm) {
 
     vte_terminal_set_mouse_autohide      (vtterm, FALSE);
 
+    /* TODO: deprecated, and remove -Wno-error=deprecated-declarations */
     vte_terminal_set_background_transparent(vtterm, opt_bg_transparent);
     vte_terminal_set_background_saturation (vtterm, opt_bg_saturation);
     vte_terminal_set_background_image_file (vtterm, opt_bg_image);
@@ -427,7 +428,7 @@ void sdvt_desktop_manager_init() {
 	on_screen = opt_one_screen ? gdk_screen_get_number(gdk_screen_get_default()) : -1;
 
     gdpy = gdk_display_get_default();
-    n_scr = gdk_display_get_n_screens(gdpy);
+    n_scr = 1; // TODO the number of screens is always 1. and: gdk_display_get_screen -> gdk_display_get_default_screen ?
     g_debug("n_scr=%d\n",n_scr);
 
     n_desktops = 0;

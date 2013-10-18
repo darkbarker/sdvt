@@ -4,7 +4,7 @@
 
 PREFIX ?= /usr/local
 MANPREFIX = ${PREFIX}/share/man
-CFLAGS += -Wall -Werror -Wextra -pedantic -Wno-unused-parameter -std=c99 
+CFLAGS += -Wall -Werror -Wextra -pedantic -Wno-unused-parameter -Wno-error=deprecated-declarations -std=c99 
 #CPPFLAGS += -DPREFIX=\"$(PREFIX)\"
 #CC = cc
 
